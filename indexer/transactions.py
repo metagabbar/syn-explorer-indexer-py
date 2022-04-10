@@ -1,4 +1,5 @@
-from typing import (Optional, Dict, get_args)
+import sys
+from typing import (Optional, Dict, get_args, Any)
 from dataclasses import dataclass, fields
 from decimal import Decimal
 from bson import Decimal128
@@ -27,7 +28,6 @@ class Base:
                 self.received_value_formatted = handle_decimals(
                     initial,
                     decimals,
-                    for_mongo=True
                 )
             else:
                 self.received_token_symbol = None
@@ -72,15 +72,23 @@ class Base:
                 raise TypeError(f'expected {field.name!r} to be of type '
                                 f'{field.type} not {type(val)}')
 
-    def serialize(self) -> Dict[str, str]:
+    def serialize(self) -> Dict[str, Any]:
+        """
+        :return: Dict with keys and values as string.
+        Converts Decimal to Decimal128 for MongoDB
+        """
         res = {}
         for k, v in self.__dict__.items():
+            # MongoDB cannot handle Decimal type
             if isinstance(v, Decimal):
                 res[k] = Decimal128(v)
             elif isinstance(v, HexBytes):
                 res[k] = v.hex()
+            # MongoDB cannot handle ints more than 8 bytes
+            elif isinstance(v, int) and v > sys.maxsize:
+                res[k] = str(v)
             else:
-                res[k] = v if isinstance(v, str) else str(v)
+                res[k] = v
         return res
 
 

@@ -1,7 +1,6 @@
 from typing import Callable, Dict, Optional, Tuple, Union, cast, List, overload
 from collections import namedtuple
 import time
-import dataclasses
 from indexer.db import MongoManager
 from pymongo.database import Database
 from web3.types import FilterParams, LogReceipt
@@ -200,7 +199,7 @@ def bridge_callback(
     if topic not in TOPICS:
         raise RuntimeError(f'sanity check? got invalid topic: {topic}')
 
-    print("Topic is", topic)
+    # print("Topic is", topic)
 
     event = TOPIC_TO_EVENT[topic]
     direction = TOPICS[topic]
@@ -266,8 +265,28 @@ def bridge_callback(
         if not testing:
             try:
                 db: Database = MongoManager.get_db_instance()
-                inserted_txn_id = db.transactions.insert_one(txn.serialize()).inserted_id
-                print(f"Inserted transaction having kappa {str(kappa)} with id {inserted_txn_id}")
+
+                txn_with_kappa = db.transactions.find_one({'kappa': kappa.hex()})
+                print(txn_with_kappa)
+
+                if not txn_with_kappa:
+                    # OUT received first. Store transaction as pending normally
+                    db.transactions.insert_one(txn.serialize())
+                    print(f"Inserted OUT transaction having with {kappa.hex()} txn hash {tx_hash.hex()}")
+
+                else:
+                    # IN already was received before OUT. Set missing values and unset pending
+                    txn.pending = False
+                    db.transactions.update_one(
+                        filter={'kappa': kappa.hex()},
+                        update={
+                            "$set": {
+                                **txn.serialize(),
+                            }
+                        }
+                    )
+                    print(f"Transaction matching complete. Updated OUT for transaction with kappa {kappa.hex()} txn hash {tx_hash.hex()}")
+
             except Exception as e:
                 print("Error storing in DB!", e)
 
@@ -335,45 +354,36 @@ def bridge_callback(
             # amount without the fee excluded.
             received_value -= data.fee
 
-        if testing:
-            print(LostTransaction(tx_hash, data.to, received_value,
-                                  from_chain, timestamp, received_token,
-                                  swap_success, kappa))
-
-            return LostTransaction(tx_hash, data.to, received_value,
+        lost_txn = LostTransaction(tx_hash, data.to, received_value,
                                    from_chain, timestamp, received_token,
                                    swap_success, kappa)
 
-        params = (tx_hash, received_value, timestamp, received_token,
-                  swap_success, kappa)
+        # Store in DB
+        if not testing:
+            try:
+                db: Database = MongoManager.get_db_instance()
+                txn_with_kappa = db.transactions.find_one({'kappa': kappa.hex()})
 
-        # TODO: Implement DB
-        # with PSQL.connection() as conn:
-        #     conn.autocommit = True
-        #     with conn.cursor() as c:
-        #         try:
-        #             c.execute(IN_SQL, params)
-        #
-        #             if c.rowcount == 0:
-        #                 c.execute(LOST_IN_SQL,
-        #                           (tx_hash, data.to, received_value,
-        #                            from_chain, timestamp, received_token,
-        #                            swap_success, args['kappa']))
-        #             else:
-        #                 if c.rowcount != 1:
-        #                     # TODO: Rollback here?
-        #                     raise RuntimeError(
-        #                         f'`IN_SQL` with args {params}, affected {c.rowcount}'
-        #                         f' {tx_hash.hex()} {chain}')
-        #         except Exception as e:
-        #             try:
-        #                 c.execute(LOST_IN_SQL,
-        #                           (tx_hash, data.to, received_value,
-        #                            from_chain, timestamp, received_token,
-        #                            swap_success, args['kappa']))
-        #                 print(e)
-        #             except psycopg.errors.UniqueViolation:
-        #                 pass
+                # OUT already exists. Just set IN values and unset pending
+                if txn_with_kappa:
+                    db.transactions.update_one(
+                        filter={'kappa': kappa.hex()},
+                        update={
+                            "$set": {
+                                **lost_txn.serialize(),
+                                "pending": False
+                            }
+                        }
+                    )
+                    print(f"Transaction matching complete. Updated IN for transaction with with kappa {kappa.hex()} txn hash {tx_hash.hex()}")
+                else:
+                    # IN txn shows up first
+                    to_insert = lost_txn.serialize()
+                    db.transactions.insert_one(to_insert)
+                    print(f"Updated IN for transaction with kappa {kappa.hex()} txn hash {tx_hash.hex()}")
+
+            except Exception as e:
+                print("Error storing in DB!", e)
 
     if save_block_index:
         LOGS_REDIS_URL.set(f'{chain}:logs:{address}:MAX_BLOCK_STORED',
