@@ -8,5 +8,5 @@ if __name__ == '__main__':
         # Gets new events
         gevent.spawn(poll.start, bridge_callback),
         # Backfill events
-        # gevent.spawn(dispatch_get_logs, bridge_callback)
+        gevent.spawn(dispatch_get_logs, bridge_callback)
     ])
