@@ -1,6 +1,6 @@
 # syn-explorer-indexer
 
-Indexes synapse bridge transactions across all chains. [BlazeWasHere/SYN-Explorer-API](https://github.com/BlazeWasHere/SYN-Explorer-API)
+Indexes synapse bridge transactions across all chains. Pulled from [BlazeWasHere/SYN-Explorer-API](https://github.com/BlazeWasHere/SYN-Explorer-API)
 
 ### Setup
 

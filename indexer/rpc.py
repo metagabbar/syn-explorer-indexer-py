@@ -1,7 +1,9 @@
 from typing import Callable, Dict, Optional, Tuple, Union, cast, List, overload
 from collections import namedtuple
 import time
-
+import dataclasses
+from indexer.db import MongoManager
+from pymongo.database import Database
 from web3.types import FilterParams, LogReceipt
 from hexbytes import HexBytes
 from web3 import Web3
@@ -12,7 +14,7 @@ from indexer.data import BRIDGE_ABI, SYN_DATA, LOGS_REDIS_URL, \
     MISREPRESENTED_MAP
 from indexer.helpers import convert, retry, search_logs, \
     iterate_receipt_logs
-from indexer.database import Transaction, LostTransaction
+from indexer.transactions import Transaction, LostTransaction
 from indexer.contract import get_pool_data
 
 # Start blocks of the 4pool >=Nov-7th-2021.
@@ -189,7 +191,6 @@ def bridge_callback(
     assert 'from' in tx_info  # Make mypy happy - look key 'from' exists!
     from_chain = CHAINS_REVERSED[chain]
 
-
     # The info before wrapping the asset can be found in the receipt.
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash,
                                                   timeout=10,
@@ -199,7 +200,7 @@ def bridge_callback(
     if topic not in TOPICS:
         raise RuntimeError(f'sanity check? got invalid topic: {topic}')
 
-    print("Topics is", topic)
+    print("Topic is", topic)
 
     event = TOPIC_TO_EVENT[topic]
     direction = TOPICS[topic]
@@ -256,27 +257,21 @@ def bridge_callback(
                 f'did not converge OUT event: {event} {tx_hash.hex()} {chain}'
                 f' args: {args}')
 
-        if testing:
-            print(Transaction(tx_hash, None, HexBytes(tx_info['from']),
-                               data.to, sent_value, None, True, from_chain,
-                               data.chain_id, timestamp, None, None,
-                               sent_token_address, None, kappa))
-            return Transaction(tx_hash, None, HexBytes(tx_info['from']),
-                               data.to, sent_value, None, True, from_chain,
-                               data.chain_id, timestamp, None, None,
-                               sent_token_address, None, kappa)
+        txn = Transaction(tx_hash, None, HexBytes(tx_info['from']),
+                          data.to, sent_value, None, True, from_chain,
+                          data.chain_id, timestamp, None, None,
+                          sent_token_address, None, kappa)
 
-        # TODO: Implement DB
-        # with PSQL.connection() as conn:
-        #     with conn.cursor() as c:
-        #         try:
-        #             c.execute(OUT_SQL,
-        #                       (tx_hash, HexBytes(tx_info['from']), data.to,
-        #                        sent_value, from_chain, data.chain_id,
-        #                        timestamp, sent_token_address, kappa))
-        #         except psycopg.errors.UniqueViolation:
-        #             # TODO: stderr? rollback?
-        #             pass
+        # Store in DB
+        if not testing:
+            try:
+                db: Database = MongoManager.get_db_instance()
+                inserted_txn_id = db.transactions.insert_one(txn.serialize()).inserted_id
+                print(f"Inserted transaction having kappa {str(kappa)} with id {inserted_txn_id}")
+            except Exception as e:
+                print("Error storing in DB!", e)
+
+        return txn
 
     elif direction == Direction.IN:
         received_value = None
@@ -342,8 +337,8 @@ def bridge_callback(
 
         if testing:
             print(LostTransaction(tx_hash, data.to, received_value,
-                                   from_chain, timestamp, received_token,
-                                   swap_success, kappa))
+                                  from_chain, timestamp, received_token,
+                                  swap_success, kappa))
 
             return LostTransaction(tx_hash, data.to, received_value,
                                    from_chain, timestamp, received_token,
@@ -388,15 +383,15 @@ def bridge_callback(
 
 
 def get_logs(
-    chain: str,
-    callback: Callable[[str, str, LogReceipt], None],
-    address: str,
-    start_block: int = None,
-    till_block: int = None,
-    max_blocks: int = MAX_BLOCKS,
-    topics: List[str] = list(TOPICS),
-    key_namespace: str = 'logs',
-    start_blocks: Dict[str, int] = _start_blocks,
+        chain: str,
+        callback: Callable[[str, str, LogReceipt], None],
+        address: str,
+        start_block: int = None,
+        till_block: int = None,
+        max_blocks: int = MAX_BLOCKS,
+        topics: List[str] = list(TOPICS),
+        key_namespace: str = 'logs',
+        start_blocks: Dict[str, int] = _start_blocks,
 ) -> None:
     w3: Web3 = SYN_DATA[chain]['w3']
     _chain = f'[{chain}]'
@@ -454,7 +449,7 @@ def get_logs(
             # Skip transactions from the very first block
             # that are already in the DB
             if log['blockNumber'] == initial_block \
-              and log['transactionIndex'] <= tx_index:
+                    and log['transactionIndex'] <= tx_index:
                 continue
 
             retry(callback, chain, address, log)
@@ -465,7 +460,7 @@ def get_logs(
         total_events += len(logs)
 
         percent = 100 * (to_block - initial_block) \
-            / (till_block - initial_block)
+                  / (till_block - initial_block)
 
         print(f'{key_namespace} | {_chain:{chain_len}} elapsed {y:5.1f}s'
               f' ({y - x:5.1f}s), found {total_events:5} events,'

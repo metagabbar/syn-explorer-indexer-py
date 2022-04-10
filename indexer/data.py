@@ -53,9 +53,23 @@ with open(os.path.join(_abis_path, 'bridgeConfig.json')) as f:
 Chain ids to names
 """
 CHAINS = {
-    1: 'ethereum',
+    43114: 'avalanche',
+    1666600000: 'harmony',
+    42161: 'arbitrum',
+    250: 'fantom',
+    137: 'polygon',
     56: 'bsc',
+    1: 'ethereum',
+    288: 'boba',
+    1285: 'moonriver',
+    10: 'optimism',
+    1313161554: 'aurora',
+    1284: 'moonbeam',
+    25: 'cronos',
+    1088: 'metis',
+    53935: 'dfk',
 }
+
 CHAINS_REVERSED = {v: k for k, v in CHAINS.items()}
 
 """

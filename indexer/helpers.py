@@ -3,6 +3,7 @@ from contextlib import suppress
 import traceback
 import decimal
 import logging
+from bson.decimal128 import Decimal128
 
 from web3.types import TxReceipt, LogReceipt
 from web3.exceptions import MismatchedABI
