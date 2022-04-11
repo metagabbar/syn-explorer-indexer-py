@@ -28,13 +28,8 @@ if TESTING: print('Running with TESTING mode enabled.')
 """
 Setup Redis
 """
-REDIS_HOST = os.environ['REDIS_HOST']
-REDIS_PORT = int(os.environ['REDIS_PORT'])
-# We use this for processes to interact w/ eachother.
-MESSAGE_QUEUE_REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/1'
-MESSAGE_QUEUE_REDIS = redis.Redis.from_url(MESSAGE_QUEUE_REDIS_URL, decode_responses=True)
 # We use this for storing eth_GetLogs and stuff related to that.
-LOGS_REDIS_URL = redis.Redis(REDIS_HOST, REDIS_PORT, decode_responses=True)
+LOGS_REDIS_URL = redis.from_url(os.environ['REDIS_URL'], decode_responses=True)
 """
 Load ABIs
 """

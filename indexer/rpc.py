@@ -267,7 +267,6 @@ def bridge_callback(
                 db: Database = MongoManager.get_db_instance()
 
                 txn_with_kappa = db.transactions.find_one({'kappa': kappa.hex()})
-                print(txn_with_kappa)
 
                 if not txn_with_kappa:
                     # OUT received first. Store transaction as pending normally

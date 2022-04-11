@@ -1,6 +1,6 @@
 import pymongo
 import os
-
+from urllib.parse import quote_plus
 
 class MongoManager:
     __instance = None
@@ -18,7 +18,7 @@ class MongoManager:
             if 'MONGO_PASSWORD' in os.environ:
                 MongoManager.__instance = pymongo.MongoClient(
                     f"mongodb://{os.environ['MONGO_USERNAME']}:"
-                    f"{os.environ['MONGO_PASSWORD']}@"
+                    f"{quote_plus(os.environ['MONGO_PASSWORD'])}@"
                     f"{os.environ['MONGO_HOST']}:27017/{os.environ['MONGO_DB_NAME']}"
                 )[os.environ['MONGO_DB_NAME']]
 
