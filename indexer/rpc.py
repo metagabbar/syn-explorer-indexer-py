@@ -277,8 +277,8 @@ def bridge_callback(
                     # IN already was received before OUT. Set missing values and unset pending
                     txn.pending = False
                     db.transactions.update_one(
-                        filter={'kappa': kappa.hex()},
-                        update={
+                        {'kappa': kappa.hex()},
+                        {
                             "$set": {
                                 **txn.serialize(),
                             }
