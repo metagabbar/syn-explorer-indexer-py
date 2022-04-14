@@ -72,7 +72,7 @@ class Base:
                 raise TypeError(f'expected {field.name!r} to be of type '
                                 f'{field.type} not {type(val)}')
 
-    def serialize(self) -> Dict[str, Any]:
+    def serialize(self, include_none=False) -> Dict[str, Any]:
         """
         :return: Dict with keys and values as string.
         Converts Decimal to Decimal128 for MongoDB
@@ -88,7 +88,9 @@ class Base:
             elif isinstance(v, int) and v > sys.maxsize:
                 res[k] = str(v)
             else:
-                res[k] = v
+                # Don't include empty keys. This messes with indexing, rewriting values
+                if include_none is False and v is not None:
+                    res[k] = v
         return res
 
 

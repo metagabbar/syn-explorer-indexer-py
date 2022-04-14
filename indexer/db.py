@@ -15,7 +15,7 @@ class MongoManager:
         if MongoManager.__instance is not None:
             raise Exception("Error. Cannot re-instantiate a singleton")
         else:
-            if 'MONGO_PASSWORD' in os.environ:
+            if 'TESTING' not in os.environ:
                 MongoManager.__instance = pymongo.MongoClient(
                     f"mongodb://{os.environ['MONGO_USERNAME']}:"
                     f"{quote_plus(os.environ['MONGO_PASSWORD'])}@"
