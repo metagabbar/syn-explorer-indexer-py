@@ -366,8 +366,8 @@ def bridge_callback(
                 # OUT already exists. Just set IN values and unset pending
                 if txn_with_kappa:
                     db.transactions.update_one(
-                        filter={'kappa': kappa.hex()},
-                        update={
+                        {'kappa': kappa.hex()},
+                        {
                             "$set": {
                                 **lost_txn.serialize(),
                                 "pending": False
